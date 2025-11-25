@@ -372,11 +372,18 @@ mod app {
     }
 
     #[task(binds = USB, shared = [usb_bus, usb_serial], priority = 1)]
-    fn poll_usb(cx: poll_usb::Context) {
-        let mut serial = cx.shared.usb_serial;
-        let mut usb_bus = cx.shared.usb_bus;
-
-        (&mut serial, &mut usb_bus).lock(|serial, b| {
+    fn poll_usb(
+        poll_usb::Context {
+            shared:
+                poll_usb::SharedResources {
+                    usb_bus,
+                    usb_serial,
+                    ..
+                },
+            ..
+        }: poll_usb::Context,
+    ) {
+        (usb_serial, usb_bus).lock(|serial, b| {
             if !b.poll(&mut [serial]) {
                 return;
             }
