@@ -3,8 +3,9 @@
 
 use bsp::hal;
 use circuit_playground_express::{self as bsp};
-use hal::gpio::{Input, Pin, PullDown, PullUp};
+use hal::gpio::{DynPin, Input, Pin, PullDown, PullUp};
 use hal::rtc::rtic::rtc_clock;
+use ws2812_timer_delay::Ws2812;
 
 #[cfg(not(feature = "use_semihosting"))]
 use panic_halt as _;
@@ -14,12 +15,6 @@ use panic_semihosting as _;
 //hal::rtc_monotonic!(Mono, rtc_clock::ClockCustom<8_192>);
 hal::rtc_monotonic!(Mono, rtc_clock::Clock32k);
 
-type ButtonAPin = Pin<hal::gpio::PA28, Input<PullDown>>;
-
-type SwitchPin = Pin<hal::gpio::PA15, Input<PullUp>>;
-
-type BigButtonPin = Pin<hal::gpio::PA05, Input<PullDown>>;
-
 const NUM_PIXELS: usize = 20;
 const PIXEL_BRIGHTNESS: u8 = 124;
 const DEFAULT_NUM_ACTIVE_PIXELS: usize = 10;
@@ -27,14 +22,6 @@ const MIN_SPIN_LEN: usize = 5;
 const MAX_SPIN_LEN: usize = 20;
 
 type NeoPixelTimer = hal::timer::TimerCounter3;
-
-// internal pin
-// type NeoPixelPin = hal::gpio::Pin<hal::gpio::PB23, hal::gpio::Output<hal::gpio::PushPull>>,
-
-// external pin
-type NeoPixelPin = Pin<hal::gpio::PA07, hal::gpio::Output<hal::gpio::PushPull>>;
-
-type NeoPixel = ws2812_timer_delay::Ws2812<NeoPixelTimer, NeoPixelPin>;
 
 #[rtic::app(device = bsp::pac, dispatchers = [EVSYS])]
 mod app {
@@ -58,16 +45,16 @@ mod app {
     #[local]
     struct Local {
         // usb_allocator: UsbBusAllocator<UsbBus>,
-        big_button_pin: BigButtonPin,
-        button_a_pin: ButtonAPin,
+        big_button_pin: DynPin,
+        button_a_pin: DynPin,
         red_led: bsp::RedLed,
-        switch_pin: SwitchPin,
+        switch_pin: DynPin,
     }
 
     #[shared]
     struct Shared {
         button_a: debouncr::DebouncerStateful<u8, debouncr::Repeat2>,
-        neo_pixel: NeoPixel,
+        neo_pixel: Ws2812<NeoPixelTimer, DynPin>,
         rng: rand::rngs::SmallRng,
         usb_bus: UsbDevice<'static, UsbBus>,
         usb_serial: SerialPort<'static, UsbBus>,
@@ -86,12 +73,12 @@ mod app {
         let pins = bsp::Pins::new(peripherals.port);
 
         let red_led: bsp::RedLed = pin_alias!(pins.red_led).into();
-        let button_a_pin = pin_alias!(pins.d4).into_pull_down_input();
+        let button_a_pin = pin_alias!(pins.d4).into_pull_down_input().into();
         let button_a_debouncr = debouncr::debounce_stateful_2(false);
 
-        let big_button_pin = pin_alias!(pins.a1).into_pull_down_input();
+        let big_button_pin = pin_alias!(pins.a1).into_pull_down_input().into();
 
-        let switch_pin = pin_alias!(pins.d7).into_pull_up_input();
+        let switch_pin = pin_alias!(pins.d7).into_pull_up_input().into();
 
         *cx.local.usb_allocator = MaybeUninit::new(bsp::usb_allocator(
             peripherals.usb,
@@ -134,7 +121,8 @@ mod app {
         //     .write(pixel_colors.iter().cloned())
         //     .unwrap();
 
-        let mut neo_pixel = ws2812_timer_delay::Ws2812::new(timer, pin_alias!(pins.a3).into());
+        let neo_pixel_pin: DynPin = pin_alias!(pins.a3).into();
+        let mut neo_pixel = Ws2812::new(timer, neo_pixel_pin);
 
         let pixel_colors = [smart_leds::colors::BLACK; NUM_PIXELS];
         neo_pixel.write(pixel_colors.iter().cloned()).unwrap();
