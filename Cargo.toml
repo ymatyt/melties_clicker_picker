@@ -19,3 +19,6 @@ smart-leds = "0.3.0"
 usb-device = "0.3.2"
 usbd-serial = "0.2"
 ws2812-timer-delay = { version = "0.3.0", features = ["slow"] }
+
+# [profile.release]
+# panic = 'abort'

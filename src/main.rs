@@ -3,7 +3,7 @@
 
 use bsp::hal;
 use circuit_playground_express::{self as bsp};
-use hal::gpio::{DynPin, Input, Pin, PullDown, PullUp};
+use hal::gpio::DynPin;
 use hal::rtc::rtic::rtc_clock;
 use ws2812_timer_delay::Ws2812;
 
