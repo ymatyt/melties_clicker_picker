@@ -394,6 +394,7 @@ name = "melties_clicker_picker"
 version = "0.1.0"
 dependencies = [
  "circuit_playground_express",
+ "cortex-m",
  "critical-section",
  "debouncr",
  "panic-halt",

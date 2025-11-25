@@ -8,6 +8,7 @@ default = ["circuit_playground_express/rtic", "circuit_playground_express/usb"]
 use_semihosting = []
 
 [dependencies]
+cortex-m = "0.7"
 circuit_playground_express = { path = "../atsamd/boards/circuit_playground_express", features = ["use_semihosting"] }
 critical-section = "1.2.0"
 debouncr = "0.2.2"

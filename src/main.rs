@@ -387,6 +387,15 @@ mod app {
             if !b.poll(&mut [serial]) {
                 return;
             }
+
+            #[cfg(debug_assertions)]
+            {
+                let lc = serial.line_coding();
+                if lc.data_rate() == 1200 && !serial.dtr() {
+                    cortex_m::peripheral::SCB::sys_reset();
+                }
+            }
+
             let mut buf = [0u8; 64];
             if let Ok(count) = serial.read(&mut buf) {
                 for (i, c) in buf.iter().enumerate() {
