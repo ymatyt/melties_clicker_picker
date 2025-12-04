@@ -22,5 +22,5 @@ usbd-serial = "0.2"
 ws2812-timer-delay = { version = "0.3.0", features = ["slow"] }
 
 [profile.release]
-opt-level = "s"
+#opt-level = "s"
 panic = 'abort'

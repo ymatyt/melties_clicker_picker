@@ -121,7 +121,7 @@ mod app {
         //     .write(pixel_colors.iter().cloned())
         //     .unwrap();
 
-        let neo_pixel_pin: DynPin = pin_alias!(pins.a3).into();
+        let neo_pixel_pin: DynPin = pin_alias!(pins.a3).into_push_pull_output().into();
         let mut neo_pixel = Ws2812::new(timer, neo_pixel_pin);
 
         let pixel_colors = [smart_leds::colors::BLACK; NUM_PIXELS];
