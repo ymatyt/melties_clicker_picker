@@ -53,6 +53,7 @@ mod app {
 
     #[shared]
     struct Shared {
+        big_button: debouncr::DebouncerStateful<u8, debouncr::Repeat2>,
         button_a: debouncr::DebouncerStateful<u8, debouncr::Repeat2>,
         neo_pixel: Ws2812<NeoPixelTimer, DynPin>,
         rng: rand::rngs::SmallRng,
@@ -73,10 +74,12 @@ mod app {
         let pins = bsp::Pins::new(peripherals.port);
 
         let red_led: bsp::RedLed = pin_alias!(pins.red_led).into();
-        let button_a_pin = pin_alias!(pins.d4).into_pull_down_input().into();
-        let button_a_debouncr = debouncr::debounce_stateful_2(false);
 
         let big_button_pin = pin_alias!(pins.a1).into_pull_down_input().into();
+        let big_button_debouncr = debouncr::debounce_stateful_2(false);
+
+        let button_a_pin = pin_alias!(pins.d4).into_pull_down_input().into();
+        let button_a_debouncr = debouncr::debounce_stateful_2(false);
 
         let switch_pin = pin_alias!(pins.d7).into_pull_up_input().into();
 
@@ -137,6 +140,7 @@ mod app {
 
         (
             Shared {
+                big_button: big_button_debouncr,
                 button_a: button_a_debouncr,
                 rng,
                 neo_pixel,
@@ -152,20 +156,15 @@ mod app {
         )
     }
 
-    #[task(local = [big_button_pin, switch_pin], shared = [button_a, rng, usb_serial])]
+    #[task(local = [switch_pin], shared = [big_button, button_a, rng])]
     async fn clicker_picker(
         clicker_picker::Context {
-            local:
-                clicker_picker::LocalResources {
-                    big_button_pin,
-                    switch_pin,
-                    ..
-                },
+            local: clicker_picker::LocalResources { switch_pin, .. },
             shared:
                 clicker_picker::SharedResources {
+                    mut big_button,
                     mut button_a,
                     mut rng,
-                    mut usb_serial,
                     ..
                 },
             ..
@@ -185,18 +184,16 @@ mod app {
             let now = Mono::now();
             match state {
                 ClickerAppState::WaitingForInput => {
-                    if big_button_pin.is_high().unwrap() {
-                        let _ = usb_serial.lock(|s| s.write(b"big high\r\n"));
-                    }
                     if switch_pin.is_low().unwrap() {
-                        //|| big_button_pin.is_high().unwrap() {
                         state = ClickerAppState::Configure;
                         continue;
                     }
                     let _ = update_button_state::spawn();
-                    if button_a.lock(|but| but.is_high()) || big_button_pin.is_high().unwrap() {
-                        state = ClickerAppState::Spinning;
-                    }
+                    (&mut button_a, &mut big_button).lock(|but_a, big_but| {
+                        if but_a.is_high() || big_but.is_high() {
+                            state = ClickerAppState::Spinning;
+                        }
+                    });
                 }
                 ClickerAppState::Spinning => {
                     rng.lock(|rng| {
@@ -211,9 +208,11 @@ mod app {
                         continue;
                     }
                     let _ = update_button_state::spawn();
-                    if button_a.lock(|but| but.is_high()) {
-                        active_pixels = active_pixels % NUM_PIXELS + 1;
-                    }
+                    (&mut button_a, &mut big_button).lock(|but_a, big_but| {
+                        if but_a.is_high() || big_but.is_high() {
+                            active_pixels = active_pixels % NUM_PIXELS + 1;
+                        }
+                    });
                     if old_active_pixels != active_pixels {
                         let _ = light_active_pixels_neo_pixel::spawn(active_pixels);
                         old_active_pixels = active_pixels;
@@ -314,12 +313,18 @@ mod app {
     }
 
     /// A task to report button state
-    #[task(local = [button_a_pin], shared = [button_a, usb_serial], priority = 1)]
+    #[task(local = [big_button_pin, button_a_pin], shared = [big_button, button_a, usb_serial], priority = 1)]
     async fn update_button_state(
         update_button_state::Context {
-            local: update_button_state::LocalResources { button_a_pin, .. },
+            local:
+                update_button_state::LocalResources {
+                    big_button_pin,
+                    button_a_pin,
+                    ..
+                },
             shared:
                 update_button_state::SharedResources {
+                    mut big_button,
                     mut button_a,
                     mut usb_serial,
                     ..
@@ -353,6 +358,7 @@ mod app {
                 // }
             });
         });
+        big_button.lock(|but| but.update(big_button_pin.is_high().unwrap()));
     }
 
     /// A task to blink the LED to show that there is life on the board.
